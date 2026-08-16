@@ -88,19 +88,12 @@ def upsert_user(phone, **fields):
 
 
 # ---------- MESSAGING ----------
-TWILIO_CONTENT_SID = os.environ.get("TWILIO_CONTENT_SID")
-print(f"DEBUG SID VALUE: '{TWILIO_CONTENT_SID}'")
 def send_whatsapp(to_number, body):
     """to_number should be in format 'whatsapp:+91XXXXXXXXXX'"""
     if not client:
         print(f"[DRY RUN - no Twilio creds set] Would send to {to_number}: {body}")
         return
-    client.messages.create(
-        from_=TWILIO_WHATSAPP_NUMBER,
-        to=to_number,
-        content_sid=TWILIO_CONTENT_SID,
-        content_variables=json.dumps({"1": body})
-    )
+    client.messages.create(from_=TWILIO_WHATSAPP_NUMBER, to=to_number, body=body)
 
 
 def trigger_alert(phone):
