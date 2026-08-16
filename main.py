@@ -89,7 +89,7 @@ def upsert_user(phone, **fields):
 
 # ---------- MESSAGING ----------
 TWILIO_CONTENT_SID = os.environ.get("TWILIO_CONTENT_SID")
-
+print(f"DEBUG SID VALUE: '{TWILIO_CONTENT_SID}'")
 def send_whatsapp(to_number, body):
     """to_number should be in format 'whatsapp:+91XXXXXXXXXX'"""
     if not client:
