@@ -20,8 +20,6 @@ from datetime import datetime, timedelta
 
 from flask import Flask, request
 from twilio.rest import Client
-from apscheduler.schedulers.background import BackgroundScheduler
-
 # ---------- CONFIG ----------
 # Set these as environment variables before running:
 #   export TWILIO_ACCOUNT_SID=xxxx
@@ -35,8 +33,6 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "safety_bot.db")
 DEFAULT_TRIP_MINUTES = 30
 
 app = Flask(__name__)
-scheduler = BackgroundScheduler()
-scheduler.start()
 
 client = None
 if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
@@ -48,15 +44,16 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            phone TEXT PRIMARY KEY,
-            emergency_contacts TEXT,
-            trip_active INTEGER DEFAULT 0,
-            trip_started_at TEXT,
-            awaiting_contacts INTEGER DEFAULT 0,
-            awaiting_duration INTEGER DEFAULT 0
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS users (
+        phone TEXT PRIMARY KEY,
+        emergency_contacts TEXT,
+        trip_active INTEGER DEFAULT 0,
+        trip_started_at TEXT,
+        trip_expires_at TEXT,
+        awaiting_contacts INTEGER DEFAULT 0,
+        awaiting_duration INTEGER DEFAULT 0
+    )
+""")
     conn.commit()
     conn.close()
 
@@ -132,7 +129,7 @@ def whatsapp_webhook():
     # ---- SOS: works anytime, skips everything else ----
     if msg_upper == "SOS":
         if user and user[1]:
-            upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()))
+            upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()), trip_expires_at=str(datetime.now()))
             trigger_alert(from_number)
             reply = "🚨 SOS triggered. Your emergency contacts have been alerted immediately."
         else:
@@ -155,16 +152,15 @@ def whatsapp_webhook():
         except ValueError:
             minutes = DEFAULT_TRIP_MINUTES
 
-        upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()), awaiting_duration=0)
-        scheduler.add_job(
-            trigger_alert,
-            "date",
-            run_date=datetime.now() + timedelta(minutes=minutes),
-            args=[from_number],
-            id=f"trip_{from_number}_{datetime.now().timestamp()}",
+        expires_at = datetime.now() + timedelta(minutes=minutes)
+        upsert_user(
+            from_number,
+            trip_active=1,
+            trip_started_at=str(datetime.now()),
+            trip_expires_at=str(expires_at),
+            awaiting_duration=0,
         )
         reply = f"✅ Tracking started for {minutes} minutes. Reply SAFE when you arrive."
-
     # ---- START: begin a new trip ----
     elif msg_upper == "START":
         if user and user[1]:  # contacts already saved
@@ -198,6 +194,35 @@ def whatsapp_webhook():
 
     send_whatsapp(from_number, reply)
     return "", 200
+
+
+@app.route("/check-trips", methods=["GET"])
+def check_trips():
+    """Called periodically by an external cron job to fire alerts for expired trips."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT phone FROM users WHERE trip_active = 1 AND trip_expires_at IS NOT NULL")
+    rows = c.fetchall()
+    conn.close()
+
+    now = datetime.now()
+    fired = 0
+    for (phone,) in rows:
+        user = get_user(phone)
+        if not user or not user[2]:
+            continue
+        expires_at_str = user[4]
+        if not expires_at_str:
+            continue
+        try:
+            expires_at = datetime.fromisoformat(expires_at_str)
+        except ValueError:
+            continue
+        if now >= expires_at:
+            trigger_alert(phone)
+            fired += 1
+
+    return {"checked": len(rows), "alerts_fired": fired}, 200
 
 
 if __name__ == "__main__":
