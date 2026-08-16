@@ -90,6 +90,7 @@ def upsert_user(phone, **fields):
 # ---------- MESSAGING ----------
 def send_whatsapp(to_number, body):
     """to_number should be in format 'whatsapp:+91XXXXXXXXXX'"""
+    print("DEBUG: send_whatsapp called, using body-only version")
     if not client:
         print(f"[DRY RUN - no Twilio creds set] Would send to {to_number}: {body}")
         return
