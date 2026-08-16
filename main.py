@@ -87,7 +87,6 @@ def upsert_user(phone, **fields):
 # ---------- MESSAGING ----------
 def send_whatsapp(to_number, body):
     """to_number should be in format 'whatsapp:+91XXXXXXXXXX'"""
-    print("DEBUG: send_whatsapp called, using body-only version")
     if not client:
         print(f"[DRY RUN - no Twilio creds set] Would send to {to_number}: {body}")
         return
@@ -109,8 +108,10 @@ def trigger_alert(phone):
     for contact in contacts:
         contact = contact.strip()
         if contact:
-            send_whatsapp(f"whatsapp:{contact}", alert_msg)
-
+            try:
+                send_whatsapp(f"whatsapp:{contact}", alert_msg)
+            except Exception as e:
+                print(f"[ERROR] Failed to alert {contact}: {e}")
     # mark trip as closed (alert already sent, avoid duplicate alerts)
     upsert_user(phone, trip_active=0)
 
