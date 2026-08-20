@@ -192,10 +192,10 @@ def whatsapp_webhook():
             "Hi! I'm your night safety bot.\n"
             "Reply START to begin a trip, SAFE when you arrive, or SOS for immediate help."
         )
-
-    send_whatsapp(from_number, reply)
-    return "", 200
-
+    
+        print(f"[DEBUG] Generated reply for {from_number}: {reply}")
+        send_whatsapp(from_number, reply)
+        return "", 200
 
 @app.route("/check-trips", methods=["GET"])
 def check_trips():
