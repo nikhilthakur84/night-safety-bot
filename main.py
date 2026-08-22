@@ -212,6 +212,24 @@ def telegram_webhook():
     if not chat_id:
         return "", 200
     from_number = f"tg:{chat_id}"
+    location = message.get("location")
+    if location:
+    lat = location.get("latitude")
+    lon = location.get("longitude")
+    user = get_user(from_number)
+    if user and user[2]:  # trip_active
+        maps_link = f"https://maps.google.com/?q={lat},{lon}"
+        contacts = user[1].split(",") if user[1] else []
+        alert_msg = f"📍 Live location shared: {maps_link}"
+        for contact in contacts:
+            contact = contact.strip()
+            if contact:
+                try:
+                    send_whatsapp(f"whatsapp:{contact}", alert_msg)
+                except Exception as e:
+                    print(f"[ERROR] Failed to send location to {contact}: {e}")
+    send_telegram(chat_id, "📍 Got your location, shared with your emergency contacts.")
+    return "", 200
 
     user = get_user(from_number)
     reply = ""
@@ -223,7 +241,7 @@ def telegram_webhook():
         if user and user[1]:
             upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()))
             trigger_alert(from_number)
-            reply = "🚨 SOS triggered. Your emergency contacts have been alerted."
+            reply = "🚨 SOS triggered. Your emergency contacts have been alerted. Please share your live location now (📎 → Location) so we can send it to them too."
         else:
             reply = "You haven't set emergency contacts yet. Reply START to set them up."
 
