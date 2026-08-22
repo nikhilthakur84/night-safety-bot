@@ -144,7 +144,7 @@ def whatsapp_webhook():
             reply = "You haven't set emergency contacts yet. Reply START to set up first."
 
     # ---- User is mid-setup: awaiting emergency contacts ----
-    elif user and user[4]:  # awaiting_contacts
+    elif user and user[5]:  # awaiting_contacts
         contacts = incoming_msg
         upsert_user(from_number, emergency_contacts=contacts, awaiting_contacts=0, awaiting_duration=1)
         reply = (
@@ -154,7 +154,7 @@ def whatsapp_webhook():
         )
 
     # ---- User is mid-setup: awaiting trip duration ----
-    elif user and user[5]:  # awaiting_duration
+    elif user and user[6]:  # awaiting_duration
         try:
             minutes = int(incoming_msg) if msg_upper != "SKIP" else DEFAULT_TRIP_MINUTES
         except ValueError:
@@ -228,7 +228,7 @@ def telegram_webhook():
             reply = "You haven't set emergency contacts yet. Reply START to set them up."
 
     # ---- User is mid-setup: awaiting emergency contacts ----
-    elif user and user[4]:
+    elif user and user[5]:
         contacts = incoming_msg
         upsert_user(from_number, emergency_contacts=contacts, awaiting_contacts=0, awaiting_duration=1)
         reply = (
@@ -238,7 +238,7 @@ def telegram_webhook():
         )
 
     # ---- User is mid-setup: awaiting trip duration ----
-    elif user and user[5]:
+    elif user and user[6]:
         try:
             minutes = int(incoming_msg) if incoming_msg.upper() != "SKIP" else DEFAULT_TRIP_MINUTES
         except ValueError:
