@@ -243,6 +243,8 @@ def telegram_webhook():
             minutes = int(incoming_msg) if incoming_msg.upper() != "SKIP" else DEFAULT_TRIP_MINUTES
         except ValueError:
             minutes = DEFAULT_TRIP_MINUTES
+        if minutes <= 0 or minutes > 10080:
+            minutes = DEFAULT_TRIP_MINUTES
 
         expires_at = datetime.now() + timedelta(minutes=minutes)
         upsert_user(
