@@ -19,7 +19,7 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from flask import Flask, request
-from twilio.rest import Clien
+from twilio.rest import Client
 import requests
 # ---------- CONFIG ----------
 # Set these as environment variables before running:
