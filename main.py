@@ -203,7 +203,7 @@ def whatsapp_webhook():
     print(f"[DEBUG] Generated reply for {from_number}: {reply}")
     send_whatsapp(from_number, reply)
     return "", 200
-    @app.route("/telegram", methods=["POST"])
+@app.route("/telegram", methods=["POST"])
 def telegram_webhook():
     data = request.get_json(silent=True) or {}
     message = data.get("message", {})
