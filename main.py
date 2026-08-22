@@ -19,7 +19,8 @@ import sqlite3
 from datetime import datetime, timedelta
 
 from flask import Flask, request
-from twilio.rest import Client
+from twilio.rest import Clien
+import requests
 # ---------- CONFIG ----------
 # Set these as environment variables before running:
 #   export TWILIO_ACCOUNT_SID=xxxx
@@ -28,7 +29,8 @@ from twilio.rest import Client
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.environ.get("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
-
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 DB_PATH = os.path.join(os.path.dirname(__file__), "safety_bot.db")
 DEFAULT_TRIP_MINUTES = 30
 
@@ -91,7 +93,12 @@ def send_whatsapp(to_number, body):
         print(f"[DRY RUN - no Twilio creds set] Would send to {to_number}: {body}")
         return
     client.messages.create(from_=TWILIO_WHATSAPP_NUMBER, to=to_number, body=body)
-
+def send_telegram(chat_id, text):
+    """chat_id is the Telegram chat id (numeric string)"""
+    if not TELEGRAM_BOT_TOKEN:
+        print(f"[DRY RUN - no Telegram token set] Would send to {chat_id}: {text}")
+        return
+    requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": text})
 
 def trigger_alert(phone):
     """Called when timer expires without a SAFE reply."""
@@ -195,6 +202,90 @@ def whatsapp_webhook():
     
     print(f"[DEBUG] Generated reply for {from_number}: {reply}")
     send_whatsapp(from_number, reply)
+    return "", 200
+    @app.route("/telegram", methods=["POST"])
+def telegram_webhook():
+    data = request.get_json(silent=True) or {}
+    message = data.get("message", {})
+    incoming_msg = (message.get("text") or "").strip()
+    chat_id = message.get("chat", {}).get("id")
+    if not chat_id:
+        return "", 200
+    from_number = f"tg:{chat_id}"
+
+    user = get_user(from_number)
+    reply = ""
+
+    msg_upper = incoming_msg.upper()
+
+    # ---- SOS: works anytime, skips everything else ----
+    if msg_upper == "SOS":
+        if user and user[1]:
+            upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()))
+            trigger_alert(from_number)
+            reply = "🚨 SOS triggered. Your emergency contacts have been alerted."
+        else:
+            reply = "You haven't set emergency contacts yet. Reply START to set them up."
+
+    # ---- User is mid-setup: awaiting emergency contacts ----
+    elif user and user[4]:
+        contacts = incoming_msg
+        upsert_user(from_number, emergency_contacts=contacts, awaiting_contacts=0, awaiting_duration=1)
+        reply = (
+            "Got it, saved your emergency contacts.\n"
+            "How many minutes is your trip? (reply with a number, "
+            f"or reply SKIP for default {DEFAULT_TRIP_MINUTES} min)"
+        )
+
+    # ---- User is mid-setup: awaiting trip duration ----
+    elif user and user[5]:
+        try:
+            minutes = int(incoming_msg) if incoming_msg.upper() != "SKIP" else DEFAULT_TRIP_MINUTES
+        except ValueError:
+            minutes = DEFAULT_TRIP_MINUTES
+
+        expires_at = datetime.now() + timedelta(minutes=minutes)
+        upsert_user(
+            from_number,
+            trip_active=1,
+            trip_started_at=str(datetime.now()),
+            trip_expires_at=str(expires_at),
+            awaiting_duration=0,
+        )
+        reply = f"✅ Tracking started for {minutes} minutes. Reply SAFE when you arrive, or SOS for immediate help."
+
+    # ---- START: begin a new trip ----
+    elif msg_upper == "START":
+        if user and user[1]:
+            upsert_user(from_number, awaiting_duration=1)
+            reply = (
+                f"How many minutes is your trip? (reply with a number, "
+                f"or reply SKIP for default {DEFAULT_TRIP_MINUTES} min)"
+            )
+        else:
+            upsert_user(from_number, awaiting_contacts=1)
+            reply = (
+                "Let's set up your safety contacts first.\n"
+                "Reply with 1-3 phone numbers (with country code) separated by "
+                "commas, e.g. +919812345678, +919898765432"
+            )
+
+    # ---- SAFE: close out an active trip ----
+    elif msg_upper == "SAFE":
+        if user and user[2]:
+            upsert_user(from_number, trip_active=0)
+            reply = "Great, glad you're safe! 🎉"
+        else:
+            reply = "You don't have an active trip right now. Reply START to begin one."
+
+    # ---- Fallback ----
+    else:
+        reply = (
+            "Hi! I'm your night safety bot.\n"
+            "Reply START to begin a trip, SAFE when you arrive, or SOS for immediate help."
+        )
+
+    send_telegram(chat_id, reply)
     return "", 200
 
 @app.route("/check-trips", methods=["GET"])
