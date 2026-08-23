@@ -213,7 +213,7 @@ def whatsapp_webhook():
         )
     
 print(f"[DEBUG] Generated reply for {from_number}: {reply}")
-    try:
+ try:
         send_whatsapp(from_number, reply)
     except Exception as e:
         print(f"[ERROR] Failed to send WhatsApp reply: {e}")
