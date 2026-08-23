@@ -101,10 +101,10 @@ def send_telegram(chat_id, text):
     requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": text})
 
 def trigger_alert(phone):
-    """Called when timer expires without a SAFE reply."""
+    """Called when timer expires without a SAFE reply. Returns True if at least one contact was successfully alerted."""
     user = get_user(phone)
     if not user or not user[2]:  # trip_active check
-        return  # user already checked in safe, do nothing
+        return False  # user already checked in safe, do nothing
 
     contacts = user[1].split(",") if user[1] else []
     started_at = user[3]
@@ -112,16 +112,19 @@ def trigger_alert(phone):
         f"⚠️ Safety Alert: {phone.replace('whatsapp:', '')} started a trip at "
         f"{started_at} and has not checked in as SAFE. Please check on them."
     )
+    sent_ok = False
     for contact in contacts:
         contact = contact.strip()
         if contact:
             try:
                 send_whatsapp(f"whatsapp:{contact}", alert_msg)
+                sent_ok = True
             except Exception as e:
                 print(f"[ERROR] Failed to alert {contact}: {e}")
+
     # mark trip as closed (alert already sent, avoid duplicate alerts)
     upsert_user(phone, trip_active=0)
-
+    return sent_ok
 
 # ---------- WEBHOOK ----------
 @app.route("/whatsapp", methods=["POST"])
@@ -142,14 +145,16 @@ def whatsapp_webhook():
         )
 
     # ---- SOS: works anytime, skips everything else ----
-    elif msg_upper == "SOS":
+    if msg_upper == "SOS":
         if user and user[1]:
-            upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()), trip_expires_at=str(datetime.now()))
-            trigger_alert(from_number)
-            reply = "🚨 SOS triggered. Your emergency contacts have been alerted immediately."
+            upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()))
+            alerted = trigger_alert(from_number)
+            if alerted:
+                reply = "🚨 SOS triggered. Your emergency contacts have been alerted immediately."
+            else:
+                reply = "🚨 SOS triggered, but we couldn't reach your emergency contacts right now. Please contact them directly if you can."
         else:
             reply = "You haven't set emergency contacts yet. Reply START to set up first."
-
     # ---- User is mid-setup: awaiting emergency contacts ----
     elif user and user[5]:  # awaiting_contacts
         contacts = incoming_msg
@@ -227,18 +232,23 @@ def telegram_webhook():
         lat = location.get("latitude")
         lon = location.get("longitude")
         user = get_user(from_number)
+        sent_ok = False
         if user and user[2]:  # trip_active
-            maps_link = f"https://maps.google.com/?q={lat},{lon}"
+            maps_link = f"https://maps.google..."
             contacts = user[1].split(",") if user[1] else []
-            alert_msg = f"📍 Live location shared: {maps_link}"
+            alert_msg = f"📍 Live location sh..."
             for contact in contacts:
                 contact = contact.strip()
                 if contact:
                     try:
-                        send_whatsapp(f"whatsapp:{contact}", alert_msg)
+                        send_whatsapp(f"whatsapp:{contact}", ...)
+                        sent_ok = True
                     except Exception as e:
-                        print(f"[ERROR] Failed to send location to {contact}: {e}")
-        send_telegram(chat_id, "📍 Got your location, shared with your emergency contacts.")
+                        print(f"[ERROR] Failed to ale...")
+        if sent_ok:
+            send_telegram(chat_id, "📍 Got your location, shared with your emergency contacts.")
+        else:
+            send_telegram(chat_id, "📍 Got your location, but couldn't reach your emergency contacts right now. Please contact them directly if you can.")
         return "", 200
 
     user = get_user(from_number)
