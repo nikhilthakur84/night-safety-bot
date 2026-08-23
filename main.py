@@ -133,9 +133,16 @@ def whatsapp_webhook():
     reply = ""
 
     msg_upper = incoming_msg.upper()
+    if msg_upper in ("EDIT", "EDIT CONTACTS", "RESET CONTACTS"):
+        upsert_user(from_number, awaiting_contacts=1)
+        reply = (
+            "Let's update your safety contacts.\n"
+            "Reply with 1-3 phone numbers (with country code) separated by "
+            "commas, e.g. +919812345678, +919898765432"
+        )
 
     # ---- SOS: works anytime, skips everything else ----
-    if msg_upper == "SOS":
+    elif msg_upper == "SOS":
         if user and user[1]:
             upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()), trip_expires_at=str(datetime.now()))
             trigger_alert(from_number)
@@ -235,9 +242,15 @@ def telegram_webhook():
     reply = ""
 
     msg_upper = incoming_msg.upper()
-
+    if msg_upper in ("EDIT", "EDIT CONTACTS", "RESET CONTACTS"):
+        upsert_user(from_number, awaiting_contacts=1)
+        reply = (
+            "Let's update your safety contacts.\n"
+            "Reply with 1-3 phone numbers (with country code) separated by "
+            "commas, e.g. +919812345678, +919898765432"
+        )
     # ---- SOS: works anytime, skips everything else ----
-    if msg_upper == "SOS":
+    elif msg_upper == "SOS":
         if user and user[1]:
             upsert_user(from_number, trip_active=1, trip_started_at=str(datetime.now()))
             trigger_alert(from_number)
