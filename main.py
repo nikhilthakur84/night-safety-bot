@@ -207,8 +207,11 @@ def whatsapp_webhook():
             "Reply START to begin a trip, SAFE when you arrive, or SOS for immediate help."
         )
     
-    print(f"[DEBUG] Generated reply for {from_number}: {reply}")
-    send_whatsapp(from_number, reply)
+print(f"[DEBUG] Generated reply for {from_number}: {reply}")
+    try:
+        send_whatsapp(from_number, reply)
+    except Exception as e:
+        print(f"[ERROR] Failed to send WhatsApp reply: {e}")
     return "", 200
 @app.route("/telegram", methods=["POST"])
 def telegram_webhook():
