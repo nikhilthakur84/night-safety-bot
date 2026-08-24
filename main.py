@@ -326,7 +326,18 @@ def telegram_webhook():
     send_telegram(chat_id, reply)
     return "", 200
 
-
+@app.route("/debug-twilio", methods=["GET"])
+def debug_twilio():
+    to_number = "whatsapp:+919046291649"
+    body_text = "Diagnostic test message, no ContentSid"
+    print(f"[TWILIO DEBUG] from_={TWILIO_WHATSAPP_NUMBER!r} to={to_number!r} body={body_text!r}")
+    try:
+        msg = client.messages.create(from_=TWILIO_WHATSAPP_NUMBER, to=to_number, body=body_text)
+        print(f"[TWILIO DEBUG] SUCCESS sid={msg.sid} status={msg.status}")
+        return {"result": "sent", "sid": msg.sid}, 200
+    except Exception as e:
+        print(f"[TWILIO DEBUG] FAILURE: {type(e).__name__}: {e}")
+        return {"result": "failed", "error": str(e)}, 200
 @app.route("/check-trips", methods=["GET"])
 def check_trips():
     """Called periodically by an external cron job to fire alerts for expired trips."""
